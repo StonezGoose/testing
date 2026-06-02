@@ -6,12 +6,20 @@
 <title>FridgeAI</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: sans-serif; background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-  #video-container { width: 100%; max-width: 400px; position: relative; }
+  body { font-family: sans-serif; background: #111; color: #fff; display: flex; flex-direction: column; align-items: center; padding-bottom: 24px; }
+  #video-container { width: 100%; max-width: 480px; position: relative; }
   video { width: 100%; display: block; }
-  #result { font-size: 28px; font-weight: bold; text-align: center; padding: 16px; color: #4ade80; }
-  #confidence { font-size: 16px; text-align: center; color: #aaa; padding-bottom: 8px; }
-  #status { font-size: 14px; text-align: center; color: #facc15; padding: 12px; }
+  #result { font-size: 26px; font-weight: bold; text-align: center; padding: 12px; color: #4ade80; }
+  #confidence { font-size: 14px; text-align: center; color: #aaa; padding-bottom: 8px; }
+  #status { font-size: 13px; text-align: center; color: #facc15; padding: 10px; }
+  .btn { display: block; width: 90%; max-width: 400px; margin: 10px auto; padding: 14px; font-size: 18px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; }
+  #scan-btn { background: #4ade80; color: #000; }
+  #clear-btn { background: #555; color: #fff; font-size: 14px; padding: 10px; }
+  #recipe-btn { background: #f97316; color: #fff; }
+  #ingredients-box { width: 90%; max-width: 400px; background: #222; border-radius: 10px; padding: 14px; margin: 10px auto; min-height: 60px; }
+  #ingredients-box h3 { font-size: 13px; color: #aaa; margin-bottom: 8px; }
+  #ingredients-list { font-size: 16px; color: #fff; line-height: 1.8; }
+  .ingredient-tag { display: inline-block; background: #333; border-radius: 20px; padding: 4px 12px; margin: 3px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -23,12 +31,22 @@
 <div id="result">--</div>
 <div id="confidence"></div>
 
+<button class="btn" id="scan-btn" onclick="addIngredient()">+ Add Ingredient</button>
+
+<div id="ingredients-box">
+  <h3>INGREDIENTS SCANNED</h3>
+  <div id="ingredients-list"><span style="color:#555">None yet</span></div>
+</div>
+
+<button class="btn" id="clear-btn" onclick="clearList()">Clear List</button>
+<button class="btn" id="recipe-btn" onclick="findRecipe()">Find Recipe 🍳</button>
+
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
 
 <script>
 const MODEL_URL = "https://teachablemachine.withgoogle.com/models/j_tmfxXnf/";
-let model, webcam, running = false;
+let model, running = false, currentLabel = "--", ingredients = [];
 
 async function init() {
   document.getElementById("status").textContent = "Loading model...";
@@ -40,7 +58,7 @@ async function init() {
     video.srcObject = stream;
     video.onloadedmetadata = () => {
       video.play();
-      document.getElementById("status").textContent = "Ready";
+      document.getElementById("status").textContent = "Point camera at ingredient";
       running = true;
       loop();
     };
@@ -54,15 +72,38 @@ async function loop() {
   const video = document.getElementById("webcam");
   const predictions = await model.predict(video);
   let best = predictions.reduce((a, b) => a.probability > b.probability ? a : b);
-  document.getElementById("result").textContent = best.className;
+  currentLabel = best.className;
+  document.getElementById("result").textContent = currentLabel;
   document.getElementById("confidence").textContent = Math.round(best.probability * 100) + "% confidence";
-
-  // Send result to App Inventor
-  if (window.AppInventor) {
-    window.AppInventor.setWebViewString(best.className + "|" + Math.round(best.probability * 100));
-  }
-
   requestAnimationFrame(loop);
+}
+
+function addIngredient() {
+  if (currentLabel === "--" || currentLabel === "Empty/unknown") return;
+  if (!ingredients.includes(currentLabel)) {
+    ingredients.push(currentLabel);
+    renderList();
+  }
+}
+
+function renderList() {
+  const el = document.getElementById("ingredients-list");
+  if (ingredients.length === 0) {
+    el.innerHTML = '<span style="color:#555">None yet</span>';
+  } else {
+    el.innerHTML = ingredients.map(i => `<span class="ingredient-tag">${i}</span>`).join("");
+  }
+}
+
+function clearList() {
+  ingredients = [];
+  renderList();
+}
+
+function findRecipe() {
+  if (ingredients.length === 0) return;
+  const query = ingredients.join(",");
+  window.location.href = "https://www.supercook.com/#/recipes?ingredients=" + encodeURIComponent(query);
 }
 
 init();

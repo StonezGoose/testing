@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { margin: 0; background: #000; }
+  video { width: 100%; height: 100vh; object-fit: cover; display: block; }
+  #label { position: fixed; bottom: 20px; left: 0; right: 0; text-align: center; 
+           font-size: 24px; font-weight: bold; color: #4ade80; 
+           text-shadow: 0 0 10px #000; font-family: sans-serif; }
+</style>
+</head>
+<body>
+<video id="webcam" autoplay playsinline muted></video>
+<div id="label">Loading...</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+
+<script>
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/j_tmfxXnf/";
+let model;
+
+async function init() {
+  model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+
+  // Get all cameras and pick the back one
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cameras = devices.filter(d => d.kind === 'videoinput');
+  // Back camera is usually the last one in the list
+  const backCamera = cameras[cameras.length - 1];
+
+  const stream = await navigator.mediaDevices.getUserMedia({ 
+    video: { deviceId: backCamera ? { exact: backCamera.deviceId } : undefined }, 
+    audio: false 
+  });
+
+  const video = document.getElementById("webcam");
+  video.srcObject = stream;
+  video.onloadedmetadata = () => { video.play(); loop(); };
+}
+
+async function loop() {
+  const video = document.getElementById("webcam");
+  const predictions = await model.predict(video);
+  const best = predictions.reduce((a, b) => a.probability > b.probability ? a : b);
+  const label = best.className;
+  const confidence = Math.round(best.probability * 100);
+
+  document.getElementById("label").textContent = label + " (" + confidence + "%)";
+
+  // Send to App Inventor
+  try {
+    window.AppInventor.setWebViewString(label + "|" + confidence);
+  } catch(e) {}
+
+  // Also set page title as fallback
+  document.title = label + "|" + confidence;
+
+  requestAnimationFrame(loop);
+}
+
+init().catch(err => {
+  document.getElementById("label").textContent = "Error: " + err.message;
+});
+</script>
+</body>
+</html>
